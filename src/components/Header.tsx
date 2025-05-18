@@ -3,16 +3,18 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Menu, X, ShoppingCart } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { user, signOut } = useAuth();
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
   };
 
   return (
-    <header className="bg-white shadow-sm sticky top-0 z-50">
+    <header className="bg-white shadow-md sticky top-0 z-50 transition-all">
       <div className="container mx-auto px-4 py-3 flex justify-between items-center">
         <div className="flex items-center">
           <Link to="/" className="flex items-center">
@@ -34,14 +36,39 @@ const Header = () => {
         
         {/* Authentication & Cart */}
         <div className="hidden md:flex items-center space-x-4">
-          <Button variant="outline" size="sm" className="border-rotiPurple text-rotiPurple hover:bg-rotiPurple hover:text-white">
-            Login
-          </Button>
-          <Button size="sm" className="bg-rotiPurple text-white hover:bg-rotiPurple/90">
-            Register
-          </Button>
-          <Link to="/cart" className="relative p-2">
-            <ShoppingCart className="h-6 w-6" />
+          {user ? (
+            <>
+              <span className="text-sm text-gray-600">Hi, {user.name || 'User'}</span>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={signOut}
+                className="border-rotiPurple text-rotiPurple hover:bg-rotiPurple hover:text-white transition-colors"
+              >
+                Logout
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                asChild
+                className="border-rotiPurple text-rotiPurple hover:bg-rotiPurple hover:text-white transition-colors"
+              >
+                <Link to="/auth">Login</Link>
+              </Button>
+              <Button 
+                size="sm" 
+                asChild
+                className="bg-rotiPurple text-white hover:bg-rotiPurple/90 transition-colors"
+              >
+                <Link to="/auth?tab=register">Register</Link>
+              </Button>
+            </>
+          )}
+          <Link to="/cart" className="relative p-2 group">
+            <ShoppingCart className="h-6 w-6 group-hover:text-rotiOrange transition-colors" />
             <span className="absolute top-0 right-0 bg-rotiOrange text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
               0
             </span>
@@ -50,8 +77,8 @@ const Header = () => {
         
         {/* Mobile Toggle */}
         <div className="flex items-center md:hidden">
-          <Link to="/cart" className="relative p-2 mr-2">
-            <ShoppingCart className="h-6 w-6" />
+          <Link to="/cart" className="relative p-2 mr-2 group">
+            <ShoppingCart className="h-6 w-6 group-hover:text-rotiOrange transition-colors" />
             <span className="absolute top-0 right-0 bg-rotiOrange text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
               0
             </span>
@@ -64,18 +91,48 @@ const Header = () => {
       
       {/* Mobile Menu */}
       {isMenuOpen && (
-        <div className="md:hidden bg-white border-t">
+        <div className="md:hidden bg-white border-t shadow-lg">
           <div className="container mx-auto px-4 py-3 flex flex-col">
             <Link to="/" className="py-3 text-gray-800 hover:text-rotiOrange transition-colors" onClick={toggleMenu}>Home</Link>
             <Link to="/menu" className="py-3 text-gray-800 hover:text-rotiOrange transition-colors" onClick={toggleMenu}>Menu</Link>
             <Link to="/orders" className="py-3 text-gray-800 hover:text-rotiOrange transition-colors" onClick={toggleMenu}>Orders</Link>
             <div className="flex space-x-4 py-3">
-              <Button variant="outline" size="sm" className="border-rotiPurple text-rotiPurple hover:bg-rotiPurple hover:text-white">
-                Login
-              </Button>
-              <Button size="sm" className="bg-rotiPurple text-white hover:bg-rotiPurple/90">
-                Register
-              </Button>
+              {user ? (
+                <>
+                  <span className="text-sm text-gray-600 py-2">Hi, {user.name || 'User'}</span>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      signOut();
+                      toggleMenu();
+                    }}
+                    className="border-rotiPurple text-rotiPurple hover:bg-rotiPurple hover:text-white transition-colors"
+                  >
+                    Logout
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    asChild
+                    className="border-rotiPurple text-rotiPurple hover:bg-rotiPurple hover:text-white transition-colors"
+                    onClick={toggleMenu}
+                  >
+                    <Link to="/auth">Login</Link>
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    asChild
+                    className="bg-rotiPurple text-white hover:bg-rotiPurple/90 transition-colors"
+                    onClick={toggleMenu}
+                  >
+                    <Link to="/auth?tab=register">Register</Link>
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>

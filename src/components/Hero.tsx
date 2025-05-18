@@ -7,14 +7,14 @@ const Hero = () => {
     <section className="bg-hero-gradient text-white">
       <div className="container mx-auto px-4 py-12 md:py-20">
         <div className="flex flex-col md:flex-row items-center">
-          <div className="md:w-1/2 text-center md:text-left">
+          <div className="md:w-1/2 text-center md:text-left max-w-[640px]">
             <h1 className="font-poppins font-semibold text-3xl md:text-5xl leading-tight mb-4">
               Authentic Homemade Pakistani Food
             </h1>
             <p className="mb-6 text-lg opacity-90 max-w-md">
               Experience authentic flavors and traditional recipes made with love. Order now for pickup at our Buffalo, NY location.
             </p>
-            <Button asChild className="btn-primary text-lg px-8 py-3">
+            <Button asChild className="btn-primary text-lg px-8 py-3 bg-rotiOrange hover:bg-rotiOrangeLight transition-colors shadow-lg">
               <Link to="/menu">Order Now</Link>
             </Button>
           </div>

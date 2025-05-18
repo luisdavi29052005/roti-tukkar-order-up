@@ -1,62 +1,106 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-
-// Sample order data
-const sampleOrders = [
-  {
-    id: 'ORD-1234',
-    date: new Date(2025, 4, 17, 18, 30), // May 17, 2025, 6:30 PM
-    status: 'ready',
-    total: 29.98,
-    items: [
-      { name: 'Chicken Biryani', quantity: 1, price: 14.99 },
-      { name: 'Garlic Naan', quantity: 2, price: 3.99 },
-      { name: 'Mango Lassi', quantity: 1, price: 4.99 }
-    ]
-  },
-  {
-    id: 'ORD-1233',
-    date: new Date(2025, 4, 15, 12, 45), // May 15, 2025, 12:45 PM
-    status: 'completed',
-    total: 18.98,
-    items: [
-      { name: 'Vegetable Biryani', quantity: 1, price: 12.99 },
-      { name: 'Naan', quantity: 2, price: 2.99 }
-    ]
-  }
-];
-
-const orderStatusLabels: Record<string, { label: string, color: string }> = {
-  'pending': { label: 'Pending', color: 'bg-yellow-100 text-yellow-800' },
-  'preparing': { label: 'Preparing', color: 'bg-blue-100 text-blue-800' },
-  'ready': { label: 'Ready for Pickup', color: 'bg-green-100 text-green-800' },
-  'completed': { label: 'Completed', color: 'bg-gray-100 text-gray-800' },
-  'cancelled': { label: 'Cancelled', color: 'bg-red-100 text-red-800' }
-};
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/components/ui/use-toast';
+import { format } from 'date-fns';
+import QRCode from 'react-qr-code';
 
 const Orders = () => {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('upcoming');
+  const [orders, setOrders] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showQR, setShowQR] = useState(null);
+  
+  // Fetch orders when user changes
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        setIsLoading(true);
+        
+        if (!user && !loading) {
+          setOrders([]);
+          setIsLoading(false);
+          return;
+        }
+        
+        if (user) {
+          const { data, error } = await supabase
+            .from('orders')
+            .select(`
+              *,
+              order_items:order_items(
+                *,
+                dish:dishes(*)
+              )
+            `)
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false });
+          
+          if (error) throw error;
+          setOrders(data || []);
+        }
+      } catch (error) {
+        console.error('Error fetching orders:', error);
+        toast({
+          title: "Error",
+          description: "Could not load orders. Please try again.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchOrders();
+    
+    // Subscribe to order updates for this user
+    if (user) {
+      const channel = supabase
+        .channel('custom-channel')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'orders', filter: `user_id=eq.${user.id}` },
+          (payload) => {
+            console.log('Order update received:', payload);
+            fetchOrders();
+          }
+        )
+        .subscribe();
+      
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [user, loading, toast]);
   
   // Filter orders for each tab
-  const upcomingOrders = sampleOrders.filter(order => 
+  const upcomingOrders = orders.filter(order => 
     ['pending', 'preparing', 'ready'].includes(order.status)
   );
   
-  const pastOrders = sampleOrders.filter(order => 
+  const pastOrders = orders.filter(order => 
     ['completed', 'cancelled'].includes(order.status)
   );
   
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('en-US', { 
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit'
-    }).format(date);
+  const formatDate = (dateString) => {
+    return format(new Date(dateString), 'MMM d, h:mm a');
+  };
+  
+  const orderStatusLabels = {
+    'pending': { label: 'Pending', color: 'bg-yellow-100 text-yellow-800' },
+    'preparing': { label: 'Preparing', color: 'bg-blue-100 text-blue-800' },
+    'ready': { label: 'Ready for Pickup', color: 'bg-green-100 text-green-800' },
+    'completed': { label: 'Completed', color: 'bg-gray-100 text-gray-800' },
+    'cancelled': { label: 'Cancelled', color: 'bg-red-100 text-red-800' }
   };
   
   return (
@@ -75,13 +119,26 @@ const Orders = () => {
         
         <div className="container mx-auto px-4 py-8">
           {/* Login Message for Guest Users */}
-          <div className="bg-white rounded-lg shadow-sm p-6 mb-8 text-center">
-            <p className="mb-4">Please log in to view your full order history.</p>
-            <div className="flex justify-center space-x-4">
-              <Button className="bg-rotiPurple hover:bg-rotiPurple/90">Log In</Button>
-              <Button variant="outline" className="border-rotiPurple text-rotiPurple hover:bg-rotiPurple hover:text-white">Register</Button>
+          {!loading && !user && (
+            <div className="bg-white rounded-lg shadow-sm p-6 mb-8 text-center">
+              <p className="mb-4">Please log in to view your full order history.</p>
+              <div className="flex justify-center space-x-4">
+                <Button 
+                  className="bg-rotiPurple hover:bg-rotiPurple/90"
+                  onClick={() => navigate('/auth')}
+                >
+                  Log In
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="border-rotiPurple text-rotiPurple hover:bg-rotiPurple hover:text-white"
+                  onClick={() => navigate('/auth?tab=register')}
+                >
+                  Register
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
           
           {/* Order Tabs */}
           <Tabs defaultValue="upcoming" className="w-full">
@@ -91,7 +148,11 @@ const Orders = () => {
             </TabsList>
             
             <TabsContent value="upcoming">
-              {upcomingOrders.length === 0 ? (
+              {isLoading ? (
+                <div className="bg-white rounded-lg shadow-sm p-6 flex justify-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-rotiPurple"></div>
+                </div>
+              ) : upcomingOrders.length === 0 ? (
                 <div className="bg-white rounded-lg shadow-sm p-6 text-center">
                   <p className="text-gray-500">You have no upcoming orders.</p>
                   <Button asChild className="mt-4 bg-rotiOrange hover:bg-rotiOrangeLight">
@@ -100,35 +161,62 @@ const Orders = () => {
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {upcomingOrders.map(order => (
+                  {upcomingOrders.map((order) => (
                     <div key={order.id} className="bg-white rounded-lg shadow-sm overflow-hidden">
                       {/* Order Header */}
                       <div className="bg-gray-50 p-4 border-b flex flex-col md:flex-row md:items-center justify-between">
                         <div>
                           <div className="flex items-center">
-                            <h3 className="font-semibold text-lg">Order #{order.id}</h3>
+                            <h3 className="font-semibold text-lg">Order #{order.id.substring(0, 8)}</h3>
                             <span className={`ml-4 text-xs px-2 py-1 rounded-full ${orderStatusLabels[order.status]?.color || 'bg-gray-100'}`}>
                               {orderStatusLabels[order.status]?.label || 'Processing'}
                             </span>
                           </div>
-                          <p className="text-gray-600 text-sm mt-1">{formatDate(order.date)}</p>
+                          <p className="text-gray-600 text-sm mt-1">{formatDate(order.pickup_time)}</p>
                         </div>
                         <div className="mt-2 md:mt-0">
-                          <Button variant="outline" size="sm" className="mr-2 border-rotiPurple text-rotiPurple">
-                            View Details
-                          </Button>
-                          <Button size="sm" className="bg-rotiOrange hover:bg-rotiOrangeLight">
-                            {order.status === 'ready' ? 'View QR Code' : 'Track Order'}
-                          </Button>
+                          {showQR === order.id ? (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="mr-2 border-rotiPurple text-rotiPurple"
+                              onClick={() => setShowQR(null)}
+                            >
+                              Hide QR Code
+                            </Button>
+                          ) : (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="mr-2 border-rotiPurple text-rotiPurple"
+                              onClick={() => setShowQR(order.id)}
+                            >
+                              {order.status === 'ready' ? 'Show QR Code' : 'View Details'}
+                            </Button>
+                          )}
                         </div>
                       </div>
+                      
+                      {/* QR Code Display */}
+                      {showQR === order.id && (
+                        <div className="p-4 bg-gray-50 flex justify-center">
+                          <div className="text-center">
+                            <div className="p-4 bg-white rounded-lg shadow-sm inline-block">
+                              <QRCode value={order.qr_code || 'no-qr-code'} size={200} />
+                            </div>
+                            <p className="mt-3 text-gray-600">
+                              Show this QR code at the restaurant to pick up your order
+                            </p>
+                          </div>
+                        </div>
+                      )}
                       
                       {/* Order Items */}
                       <div className="p-4">
                         <div className="space-y-2 mb-4">
-                          {order.items.map((item, idx) => (
-                            <div key={idx} className="flex justify-between">
-                              <span>{item.quantity}x {item.name}</span>
+                          {order.order_items.map((item) => (
+                            <div key={item.id} className="flex justify-between">
+                              <span>{item.quantity}x {item.dish.name}</span>
                               <span className="text-gray-600">${(item.price * item.quantity).toFixed(2)}</span>
                             </div>
                           ))}
@@ -146,30 +234,35 @@ const Orders = () => {
             </TabsContent>
             
             <TabsContent value="past">
-              {pastOrders.length === 0 ? (
+              {isLoading ? (
+                <div className="bg-white rounded-lg shadow-sm p-6 flex justify-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-rotiPurple"></div>
+                </div>
+              ) : pastOrders.length === 0 ? (
                 <div className="bg-white rounded-lg shadow-sm p-6 text-center">
                   <p className="text-gray-500">You have no past orders.</p>
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {pastOrders.map(order => (
+                  {pastOrders.map((order) => (
                     <div key={order.id} className="bg-white rounded-lg shadow-sm overflow-hidden">
                       {/* Order Header */}
                       <div className="bg-gray-50 p-4 border-b flex flex-col md:flex-row md:items-center justify-between">
                         <div>
                           <div className="flex items-center">
-                            <h3 className="font-semibold text-lg">Order #{order.id}</h3>
+                            <h3 className="font-semibold text-lg">Order #{order.id.substring(0, 8)}</h3>
                             <span className={`ml-4 text-xs px-2 py-1 rounded-full ${orderStatusLabels[order.status]?.color || 'bg-gray-100'}`}>
                               {orderStatusLabels[order.status]?.label || 'Processing'}
                             </span>
                           </div>
-                          <p className="text-gray-600 text-sm mt-1">{formatDate(order.date)}</p>
+                          <p className="text-gray-600 text-sm mt-1">{formatDate(order.created_at)}</p>
                         </div>
                         <div className="mt-2 md:mt-0">
-                          <Button variant="outline" size="sm" className="border-rotiPurple text-rotiPurple">
-                            View Details
-                          </Button>
-                          <Button size="sm" className="ml-2 bg-rotiOrange hover:bg-rotiOrangeLight">
+                          <Button 
+                            size="sm" 
+                            className="ml-2 bg-rotiOrange hover:bg-rotiOrangeLight"
+                            onClick={() => navigate('/menu')}
+                          >
                             Reorder
                           </Button>
                         </div>
@@ -178,9 +271,9 @@ const Orders = () => {
                       {/* Order Items */}
                       <div className="p-4">
                         <div className="space-y-2 mb-4">
-                          {order.items.map((item, idx) => (
-                            <div key={idx} className="flex justify-between">
-                              <span>{item.quantity}x {item.name}</span>
+                          {order.order_items.map((item) => (
+                            <div key={item.id} className="flex justify-between">
+                              <span>{item.quantity}x {item.dish.name}</span>
                               <span className="text-gray-600">${(item.price * item.quantity).toFixed(2)}</span>
                             </div>
                           ))}
