@@ -2,11 +2,12 @@
 import { useState } from 'react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import Cart from '@/components/Cart';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlusCircle, Search, ShoppingCart } from 'lucide-react';
+import { PlusCircle, Search, ShoppingCart, Check } from 'lucide-react';
+import { useCart } from '@/hooks/useCart';
+import { useToast } from '@/hooks/use-toast';
 
 // Sample menu data
 const menuCategories = [
@@ -21,68 +22,76 @@ const menuCategories = [
 
 const menuItems = [
   {
-    id: 1,
+    id: '1',
     name: 'Chicken Biryani',
     description: 'Fragrant basmati rice cooked with tender chicken pieces and aromatic spices',
     price: 14.99,
     image: 'https://images.unsplash.com/photo-1631452180539-96aca7d48617?q=80&w=1974&auto=format&fit=crop',
-    category: 'biryani'
+    category: 'biryani',
+    image_url: 'https://images.unsplash.com/photo-1631452180539-96aca7d48617?q=80&w=1974&auto=format&fit=crop'
   },
   {
-    id: 2,
+    id: '2',
     name: 'Vegetable Biryani',
     description: 'Mixed vegetables cooked with basmati rice and traditional spices',
     price: 12.99,
     image: 'https://images.unsplash.com/photo-1589302168068-964664d93dc0?q=80&w=1974&auto=format&fit=crop',
-    category: 'biryani'
+    category: 'biryani',
+    image_url: 'https://images.unsplash.com/photo-1589302168068-964664d93dc0?q=80&w=1974&auto=format&fit=crop'
   },
   {
-    id: 3,
+    id: '3',
     name: 'Butter Chicken',
     description: 'Tender chicken in a rich buttery tomato sauce with cream',
     price: 15.99,
     image: 'https://images.unsplash.com/photo-1588166524941-3bf61a9c41db?q=80&w=1984&auto=format&fit=crop',
-    category: 'curry'
+    category: 'curry',
+    image_url: 'https://images.unsplash.com/photo-1588166524941-3bf61a9c41db?q=80&w=1984&auto=format&fit=crop'
   },
   {
-    id: 4,
+    id: '4',
     name: 'Seekh Kebab',
     description: 'Grilled minced meat skewers with aromatic spices',
     price: 12.99,
     image: 'https://images.unsplash.com/photo-1600688640154-9619e002df30?q=80&w=2030&auto=format&fit=crop',
-    category: 'kebab'
+    category: 'kebab',
+    image_url: 'https://images.unsplash.com/photo-1600688640154-9619e002df30?q=80&w=2030&auto=format&fit=crop'
   },
   {
-    id: 5,
+    id: '5',
     name: 'Naan',
     description: 'Traditional oven-baked flatbread',
     price: 2.99,
     image: 'https://images.unsplash.com/photo-1595587870672-c79b47875c6a?q=80&w=2075&auto=format&fit=crop',
-    category: 'bread'
+    category: 'bread',
+    image_url: 'https://images.unsplash.com/photo-1595587870672-c79b47875c6a?q=80&w=2075&auto=format&fit=crop'
   },
   {
-    id: 6,
+    id: '6',
     name: 'Garlic Naan',
     description: 'Flatbread topped with garlic and butter',
     price: 3.99,
     image: 'https://plus.unsplash.com/premium_photo-1675451537771-0dd5b06b3985?q=80&w=1974&auto=format&fit=crop',
-    category: 'bread'
+    category: 'bread',
+    image_url: 'https://plus.unsplash.com/premium_photo-1675451537771-0dd5b06b3985?q=80&w=1974&auto=format&fit=crop'
   },
   {
-    id: 7,
+    id: '7',
     name: 'Gulab Jamun',
     description: 'Sweet milk solid balls soaked in rose sugar syrup',
     price: 5.99,
     image: 'https://images.unsplash.com/photo-1627823600577-1f91d3a4a118?q=80&w=1964&auto=format&fit=crop',
-    category: 'dessert'
+    category: 'dessert',
+    image_url: 'https://images.unsplash.com/photo-1627823600577-1f91d3a4a118?q=80&w=1964&auto=format&fit=crop'
   },
   {
-    id: 8,
+    id: '8',
     name: 'Mango Lassi',
     description: 'Sweet yogurt drink blended with mango and cardamom',
     price: 4.99,
     image: 'https://plus.unsplash.com/premium_photo-1664202526047-809793949aee?q=80&w=1974&auto=format&fit=crop',
-    category: 'drinks'
+    category: 'drinks',
+    image_url: 'https://plus.unsplash.com/premium_photo-1664202526047-809793949aee?q=80&w=1974&auto=format&fit=crop'
   }
 ];
 
@@ -90,6 +99,9 @@ const Menu = () => {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
+  const [addedItems, setAddedItems] = useState<Record<string, boolean>>({});
+  const { addToCart } = useCart();
+  const { toast } = useToast();
   
   const openCart = () => {
     setIsCartOpen(true);
@@ -97,6 +109,24 @@ const Menu = () => {
   
   const closeCart = () => {
     setIsCartOpen(false);
+  };
+
+  const handleAddToCart = (item: any) => {
+    addToCart(item);
+    
+    // Show added animation
+    setAddedItems(prev => ({ ...prev, [item.id]: true }));
+    
+    // Reset after animation
+    setTimeout(() => {
+      setAddedItems(prev => ({ ...prev, [item.id]: false }));
+    }, 1500);
+    
+    // Show toast notification
+    toast({
+      title: "Added to cart",
+      description: `${item.name} has been added to your cart.`,
+    });
   };
   
   // Filter menu items based on search term and category
@@ -157,17 +187,33 @@ const Menu = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredMenuItems.length > 0 ? (
               filteredMenuItems.map(item => (
-                <div key={item.id} className="card-dish">
+                <div key={item.id} className="bg-white rounded-lg shadow-md overflow-hidden transition-transform hover:shadow-lg">
                   <div className="h-48 overflow-hidden">
-                    <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                    <img src={item.image} alt={item.name} className="w-full h-full object-cover transition-transform hover:scale-105" />
                   </div>
                   <div className="p-4">
                     <h3 className="font-semibold text-lg">{item.name}</h3>
                     <p className="text-gray-600 text-sm mb-2 line-clamp-2">{item.description}</p>
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-lg">${item.price.toFixed(2)}</span>
-                      <Button size="sm" className="bg-rotiOrange hover:bg-rotiOrangeLight">
-                        <PlusCircle className="h-5 w-5" />
+                      <Button 
+                        size="sm" 
+                        className={`transition-all ${
+                          addedItems[item.id] 
+                            ? "bg-green-500 hover:bg-green-600" 
+                            : "bg-rotiOrange hover:bg-rotiOrangeLight"
+                        }`}
+                        onClick={() => handleAddToCart(item)}
+                      >
+                        {addedItems[item.id] ? (
+                          <>
+                            <Check className="h-5 w-5 mr-1" /> Added
+                          </>
+                        ) : (
+                          <>
+                            <PlusCircle className="h-5 w-5 mr-1" /> Add to Cart
+                          </>
+                        )}
                       </Button>
                     </div>
                   </div>
@@ -182,7 +228,6 @@ const Menu = () => {
         </div>
       </main>
       <Footer />
-      <Cart isOpen={isCartOpen} onClose={closeCart} />
       
       {/* Floating Cart Button (Mobile) */}
       <div className="md:hidden fixed bottom-6 right-6">

@@ -68,13 +68,16 @@ const Auth = () => {
     }
   });
   
-  // Redirect if logged in
+  // Redirect if logged in - enhanced to always check on mount and when user state changes
   useEffect(() => {
     if (user && !loading) {
-      navigate('/');
+      // Get the redirect URL from query params or default to home
+      const redirectTo = new URLSearchParams(location.search).get('redirect') || '/';
+      navigate(redirectTo, { replace: true });
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, navigate, location]);
   
+  // Early return if already authenticated and not loading
   if (user && !loading) {
     return null;
   }
@@ -83,10 +86,8 @@ const Auth = () => {
     setIsSubmitting(true);
     try {
       await signIn(values.email, values.password);
-      toast({
-        title: "Login successful",
-        description: "Welcome back!",
-      });
+      // Toast is shown by the auth hook, no need to duplicate it here
+      // Navigation happens in the useEffect above
     } catch (error) {
       console.error("Error signing in:", error);
       toast({
@@ -103,10 +104,8 @@ const Auth = () => {
     setIsSubmitting(true);
     try {
       await signUp(values.email, values.password, values.name, values.phone || '');
-      toast({
-        title: "Registration successful",
-        description: "Your account has been created successfully.",
-      });
+      // Toast is shown by the auth hook, no need to duplicate it here
+      // Navigation happens in the useEffect above
     } catch (error) {
       console.error("Error signing up:", error);
       toast({
@@ -122,6 +121,7 @@ const Auth = () => {
   const handleGoogleSignIn = async () => {
     try {
       await signInWithGoogle();
+      // Navigation happens in the useEffect above
     } catch (error) {
       console.error("Error signing in with Google:", error);
       toast({
