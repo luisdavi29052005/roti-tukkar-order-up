@@ -21,7 +21,7 @@ import {
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { InfoCircle } from 'lucide-react';
+import { Info } from 'lucide-react';
 
 // Define validation schemas
 const loginSchema = z.object({
@@ -302,7 +302,7 @@ const Auth = () => {
                             />
                           </FormControl>
                           <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
-                            <InfoCircle className="h-3 w-3" />
+                            <Info className="h-3 w-3" />
                             <span>Password must be at least 6 characters</span>
                           </div>
                           <FormMessage />
