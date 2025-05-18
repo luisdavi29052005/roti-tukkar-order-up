@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { format } from 'date-fns';
-import QRCode from 'react-qr-code';
+import QRCode from 'react-qr-code'; // Properly imported now that we've installed it
 
 const Orders = () => {
   const { user, loading } = useAuth();

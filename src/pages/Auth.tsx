@@ -23,7 +23,7 @@ const Auth = () => {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [registerEmail, setRegisterEmail] = useState('');
-  const [registerPassword, setRegisterEmail] = useState('');
+  const [registerPassword, setRegisterPassword] = useState(''); // Fixed: changed from setRegisterEmail to setRegisterPassword
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
