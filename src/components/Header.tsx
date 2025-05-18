@@ -4,10 +4,12 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Menu, X, ShoppingCart } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useCart } from '@/hooks/useCart';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { user, signOut } = useAuth();
+  const { totalItems } = useCart();
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -70,7 +72,7 @@ const Header = () => {
           <Link to="/cart" className="relative p-2 group">
             <ShoppingCart className="h-6 w-6 group-hover:text-rotiOrange transition-colors" />
             <span className="absolute top-0 right-0 bg-rotiOrange text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
-              0
+              {totalItems}
             </span>
           </Link>
         </div>
@@ -80,7 +82,7 @@ const Header = () => {
           <Link to="/cart" className="relative p-2 mr-2 group">
             <ShoppingCart className="h-6 w-6 group-hover:text-rotiOrange transition-colors" />
             <span className="absolute top-0 right-0 bg-rotiOrange text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
-              0
+              {totalItems}
             </span>
           </Link>
           <button onClick={toggleMenu} className="p-2">
