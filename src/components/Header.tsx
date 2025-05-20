@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Menu, X, ShoppingCart, User } from 'lucide-react';
+import { Menu, X, ShoppingCart, User, ClipboardList } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/hooks/useCart';
 import Cart from '@/components/Cart';
@@ -70,6 +70,15 @@ const Header = () => {
               className={`transition-colors ${isActive('/orders') ? 'text-rotiOrange font-medium' : 'text-gray-800 hover:text-rotiOrange'}`}
             >
               Orders
+            </Link>
+          )}
+          {user?.is_staff && (
+            <Link 
+              to="/staff" 
+              className={`transition-colors ${isActive('/staff') ? 'text-rotiOrange font-medium' : 'text-gray-800 hover:text-rotiOrange'} flex items-center`}
+            >
+              <ClipboardList className="h-4 w-4 mr-1" />
+              Staff Panel
             </Link>
           )}
         </nav>
@@ -159,6 +168,16 @@ const Header = () => {
                 onClick={toggleMenu}
               >
                 Orders
+              </Link>
+            )}
+            {user?.is_staff && (
+              <Link 
+                to="/staff" 
+                className={`py-3 transition-colors ${isActive('/staff') ? 'text-rotiOrange font-medium' : 'text-gray-800'} flex items-center`}
+                onClick={toggleMenu}
+              >
+                <ClipboardList className="h-4 w-4 mr-1" />
+                Staff Panel
               </Link>
             )}
             <div className="flex items-center space-x-4 py-3">
