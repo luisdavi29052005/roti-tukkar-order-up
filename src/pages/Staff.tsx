@@ -34,7 +34,7 @@ const StaffPage = () => {
     totalSales: 0,
     completedOrders: 0,
     cancelledOrders: 0,
-    monthlySales: {}
+    monthlySales: {} as Record<string, number> // Type annotation to ensure TypeScript knows this is a record of string to number
   });
   
   const categories = [
@@ -768,7 +768,7 @@ const StaffPage = () => {
                                 {month}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 font-semibold">
-                                ${sales.toFixed(2)}
+                                ${(sales as number).toFixed(2)}
                               </td>
                             </tr>
                           ))
