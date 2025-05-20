@@ -80,22 +80,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               .eq('id', session.user.id)
               .single();
             
-            // Check if this is Luis's admin account
-            const isLuisAdmin = session.user.email === 'luisdaviferrer@gmail.com';
+            // Check if this is Luis's admin account or matches the special email
+            const isSpecialAdmin = session.user.email === 'luisdaviferrer@gmail.com';
             
             if (userError && userError.code !== 'PGRST116') {
               console.error('Error fetching user profile:', userError);
             }
             
-            // If user doesn't exist in users table or it's Luis's admin account
+            // If user doesn't exist in users table or it's the special admin account
             if (!userData) {
-              // For Luis's admin account or new users
+              // For special admin account or new users
               const newUserData = {
                 id: session.user.id,
                 email: session.user.email,
                 name: session.user.user_metadata?.name || '',
                 phone: session.user.user_metadata?.phone || '',
-                is_staff: isLuisAdmin // Set is_staff to true only for Luis's account
+                is_staff: isSpecialAdmin // Set is_staff to true for special admin accounts
               };
               
               // Try to insert the new user
@@ -108,20 +108,36 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               
               if (insertError) {
                 console.error('Error creating user profile:', insertError);
-                // Continue anyway - the user is authenticated even if profile insertion fails
+                // We'll continue anyway since the user is authenticated
               }
               
               // Set the user with auth data
               setUser(newUserData);
+              
+              // Show success toast for new users
+              if (event === 'SIGNED_IN') {
+                toast({
+                  title: "Account created successfully",
+                  description: isSpecialAdmin ? "You have been logged in as a staff member." : "Your account has been created.",
+                });
+              }
             } else {
               // User exists, set with data from users table
               setUser({
                 id: session.user.id,
                 email: session.user.email,
-                name: userData.name,
-                phone: userData.phone,
-                is_staff: userData.is_staff || isLuisAdmin // Ensure Luis always has staff access
+                name: userData.name || '',
+                phone: userData.phone || '',
+                is_staff: userData.is_staff || isSpecialAdmin // Ensure special accounts always have staff access
               });
+              
+              // If existing user is staff, show special toast
+              if (userData.is_staff || isSpecialAdmin) {
+                toast({
+                  title: "Welcome back, staff member!",
+                  description: "You have been logged in with staff privileges.",
+                });
+              }
             }
           } catch (error) {
             console.error('Error in auth state change:', error);
@@ -131,7 +147,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 id: session.user.id,
                 email: session.user.email,
                 name: session.user.user_metadata?.name || '',
-                is_staff: session.user.email === 'luisdaviferrer@gmail.com' // Ensure Luis always has staff access
+                is_staff: session.user.email === 'luisdaviferrer@gmail.com' // Ensure special emails always have staff access
               });
             }
           }
@@ -146,15 +162,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [toast]);
 
   const signUp = async (email: string, password: string, name: string, phone?: string) => {
     try {
       setLoading(true);
       
-      // Special handling for Luis's admin account
-      const isLuisAdmin = email === 'luisdaviferrer@gmail.com';
+      // Special handling for special admin accounts
+      const isSpecialAdmin = email === 'luisdaviferrer@gmail.com';
       
+      // Sign up with Supabase Auth
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -186,7 +203,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // Try to insert the user into users table, but don't block on errors
       if (data.user) {
         try {
-          // Try creating user with staff privileges if it's Luis's account
+          // Try creating user with staff privileges if it's a special account
           const { error: insertError } = await supabase
             .from('users')
             .upsert([
@@ -195,7 +212,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 email,
                 name,
                 phone,
-                is_staff: isLuisAdmin // Only set to true for Luis
+                is_staff: isSpecialAdmin // Only set to true for special admin
               }
             ], {
               onConflict: 'id',
@@ -205,17 +222,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           if (insertError) {
             console.error('Error creating user profile:', insertError);
             // Continue anyway - user is authenticated even if this fails
+          } else {
+            // Successful insert, update local user state
+            setUser({
+              id: data.user.id,
+              email,
+              name,
+              phone,
+              is_staff: isSpecialAdmin
+            });
           }
         } catch (profileError) {
           console.error('Error creating user profile:', profileError);
           // Continue anyway - the user is authenticated even if profile creation fails
         }
       }
-      
-      toast({
-        title: "Registration successful",
-        description: "Your account has been created.",
-      });
       
     } catch (error: any) {
       // Error is already handled above
@@ -229,25 +250,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       setLoading(true);
       
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
       
-      if (error) throw error;
+      if (error) {
+        toast({
+          title: "Login failed",
+          description: error.message,
+          variant: "destructive"
+        });
+        throw error;
+      }
       
-      toast({
-        title: "Welcome back!",
-        description: "You have successfully logged in.",
-      });
+      // Login successful but we won't show a toast here
+      // The auth state change listener will handle showing a toast
       
     } catch (error: any) {
-      toast({
-        title: "Login failed",
-        description: error.message,
-        variant: "destructive"
-      });
       console.error('Error signing in:', error);
+      // Toast is already shown above
     } finally {
       setLoading(false);
     }

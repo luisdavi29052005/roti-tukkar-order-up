@@ -6,7 +6,6 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FaGoogle } from 'react-icons/fa';
 import { useToast } from '@/hooks/use-toast';
@@ -39,7 +38,7 @@ const registerSchema = z.object({
 const Auth = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { signIn, signUp, signInWithGoogle, user, loading } = useAuth();
+  const { signIn, signUp, signInWithGoogle, user, loading, isStaff } = useAuth();
   const { toast } = useToast();
   
   // Check URL param for default tab
@@ -91,11 +90,16 @@ const Auth = () => {
   // Redirect if logged in - enhanced to always check on mount and when user state changes
   useEffect(() => {
     if (user && !loading) {
-      // Get the redirect URL from query params or default to home
-      const redirectTo = new URLSearchParams(location.search).get('redirect') || '/';
-      navigate(redirectTo, { replace: true });
+      // Redirect staff users directly to the staff page
+      if (isStaff) {
+        navigate('/staff', { replace: true });
+      } else {
+        // For regular users, get the redirect URL from query params or default to home
+        const redirectTo = new URLSearchParams(location.search).get('redirect') || '/';
+        navigate(redirectTo, { replace: true });
+      }
     }
-  }, [user, loading, navigate, location]);
+  }, [user, loading, navigate, location, isStaff]);
   
   // Early return if already authenticated and not loading
   if (user && !loading) {
@@ -107,8 +111,8 @@ const Auth = () => {
     setIsSubmitting(true);
     try {
       await signIn(values.email, values.password);
-      // Toast is shown by the auth hook, no need to duplicate it here
-      // Navigation happens in the useEffect above
+      // The redirection happens in the useEffect above
+      // Toast is shown by the auth hook
     } catch (error: any) {
       console.error("Error signing in:", error);
       
@@ -134,8 +138,8 @@ const Auth = () => {
     setIsSubmitting(true);
     try {
       await signUp(values.email, values.password, values.name, values.phone || '');
-      // Toast is shown by the auth hook, no need to duplicate it here
-      // Navigation happens in the useEffect above
+      // The redirection happens in the useEffect above
+      // Toast is shown by the auth hook
     } catch (error: any) {
       console.error("Error signing up:", error);
       
