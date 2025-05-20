@@ -40,34 +40,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
       
       if (session) {
-        // Get user profile from our custom users table
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-        
-        if (userError && userError.code !== 'PGRST116') {
-          console.error('Error fetching user profile:', userError);
-        }
-        
-        // Set the user state with combined data
-        setUser({
-          id: session.user.id,
-          email: session.user.email,
-          name: userData?.name || '',
-          phone: userData?.phone || '',
-          is_staff: userData?.is_staff || false
-        });
-      }
-      
-      setLoading(false);
-    };
-    
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_IN' && session) {
+        try {
           // Get user profile from our custom users table
           const { data: userData, error: userError } = await supabase
             .from('users')
@@ -77,43 +50,90 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           
           if (userError && userError.code !== 'PGRST116') {
             console.error('Error fetching user profile:', userError);
-            return;
           }
           
-          // If user doesn't exist in users table, create them
-          if (!userData) {
-            const { error: insertError } = await supabase
+          // Set the user state with combined data
+          setUser({
+            id: session.user.id,
+            email: session.user.email,
+            name: userData?.name || '',
+            phone: userData?.phone || '',
+            is_staff: userData?.is_staff || false
+          });
+        } catch (error) {
+          console.error('Error processing user data:', error);
+        }
+      }
+      
+      setLoading(false);
+    };
+    
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_IN' && session) {
+          try {
+            // Try to get user from users table first
+            const { data: userData, error: userError } = await supabase
               .from('users')
-              .insert([
-                { 
-                  id: session.user.id,
-                  email: session.user.email,
-                  name: session.user.user_metadata?.name || '',
-                  phone: session.user.user_metadata?.phone || ''
-                }
-              ]);
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
             
-            if (insertError) {
-              console.error('Error creating user profile:', insertError);
+            // Check if this is Luis's admin account
+            const isLuisAdmin = session.user.email === 'luisdaviferrer@gmail.com';
+            
+            if (userError && userError.code !== 'PGRST116') {
+              console.error('Error fetching user profile:', userError);
             }
             
-            // Set the user with auth data
-            setUser({
-              id: session.user.id,
-              email: session.user.email,
-              name: session.user.user_metadata?.name || '',
-              phone: session.user.user_metadata?.phone || '',
-              is_staff: false
-            });
-          } else {
-            // User exists, set with data from users table
-            setUser({
-              id: session.user.id,
-              email: session.user.email,
-              name: userData.name,
-              phone: userData.phone,
-              is_staff: userData.is_staff
-            });
+            // If user doesn't exist in users table or it's Luis's admin account
+            if (!userData) {
+              // For Luis's admin account or new users
+              const newUserData = {
+                id: session.user.id,
+                email: session.user.email,
+                name: session.user.user_metadata?.name || '',
+                phone: session.user.user_metadata?.phone || '',
+                is_staff: isLuisAdmin // Set is_staff to true only for Luis's account
+              };
+              
+              // Try to insert the new user
+              const { error: insertError } = await supabase
+                .from('users')
+                .upsert([newUserData], {
+                  onConflict: 'id',
+                  ignoreDuplicates: false
+                });
+              
+              if (insertError) {
+                console.error('Error creating user profile:', insertError);
+                // Continue anyway - the user is authenticated even if profile insertion fails
+              }
+              
+              // Set the user with auth data
+              setUser(newUserData);
+            } else {
+              // User exists, set with data from users table
+              setUser({
+                id: session.user.id,
+                email: session.user.email,
+                name: userData.name,
+                phone: userData.phone,
+                is_staff: userData.is_staff || isLuisAdmin // Ensure Luis always has staff access
+              });
+            }
+          } catch (error) {
+            console.error('Error in auth state change:', error);
+            // Set basic user data even if there was an error
+            if (session && session.user) {
+              setUser({
+                id: session.user.id,
+                email: session.user.email,
+                name: session.user.user_metadata?.name || '',
+                is_staff: session.user.email === 'luisdaviferrer@gmail.com' // Ensure Luis always has staff access
+              });
+            }
           }
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
@@ -132,6 +152,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       setLoading(true);
       
+      // Special handling for Luis's admin account
+      const isLuisAdmin = email === 'luisdaviferrer@gmail.com';
+      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -143,23 +166,50 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       });
       
-      if (error) throw error;
+      if (error) {
+        if (error.message?.includes('rate limit') || error.message?.includes('after')) {
+          toast({
+            title: "Registration rate limited",
+            description: "For security purposes, please wait a minute before trying again.",
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "Registration failed",
+            description: error.message,
+            variant: "destructive"
+          });
+        }
+        throw error;
+      }
       
-      // Insert into users table
+      // Try to insert the user into users table, but don't block on errors
       if (data.user) {
-        const { error: insertError } = await supabase
-          .from('users')
-          .insert([
-            { 
-              id: data.user.id,
-              email,
-              name,
-              phone,
-              is_staff: false
-            }
-          ]);
-        
-        if (insertError) throw insertError;
+        try {
+          // Try creating user with staff privileges if it's Luis's account
+          const { error: insertError } = await supabase
+            .from('users')
+            .upsert([
+              { 
+                id: data.user.id,
+                email,
+                name,
+                phone,
+                is_staff: isLuisAdmin // Only set to true for Luis
+              }
+            ], {
+              onConflict: 'id',
+              ignoreDuplicates: false
+            });
+          
+          if (insertError) {
+            console.error('Error creating user profile:', insertError);
+            // Continue anyway - user is authenticated even if this fails
+          }
+        } catch (profileError) {
+          console.error('Error creating user profile:', profileError);
+          // Continue anyway - the user is authenticated even if profile creation fails
+        }
       }
       
       toast({
@@ -168,11 +218,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
       
     } catch (error: any) {
-      toast({
-        title: "Registration failed",
-        description: error.message,
-        variant: "destructive"
-      });
+      // Error is already handled above
       console.error('Error signing up:', error);
     } finally {
       setLoading(false);

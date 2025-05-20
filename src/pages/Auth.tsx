@@ -21,7 +21,7 @@ import {
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { Info } from 'lucide-react';
+import { Info, AlertTriangle } from 'lucide-react';
 
 // Define validation schemas
 const loginSchema = z.object({
@@ -48,6 +48,8 @@ const Auth = () => {
   
   const [tab, setTab] = useState(defaultTab);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [retrySeconds, setRetrySeconds] = useState<number | null>(null);
   
   // Initialize forms
   const loginForm = useForm({
@@ -67,6 +69,24 @@ const Auth = () => {
       password: ''
     }
   });
+
+  // Countdown timer for retry
+  useEffect(() => {
+    let timer: number | null = null;
+    
+    if (retrySeconds && retrySeconds > 0) {
+      timer = window.setInterval(() => {
+        setRetrySeconds(prev => (prev && prev > 0) ? prev - 1 : null);
+      }, 1000);
+    } else if (retrySeconds === 0) {
+      setRetrySeconds(null);
+      setErrorMessage(null);
+    }
+    
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [retrySeconds]);
   
   // Redirect if logged in - enhanced to always check on mount and when user state changes
   useEffect(() => {
@@ -83,52 +103,69 @@ const Auth = () => {
   }
   
   const handleLogin = async (values: z.infer<typeof loginSchema>) => {
+    setErrorMessage(null);
     setIsSubmitting(true);
     try {
       await signIn(values.email, values.password);
       // Toast is shown by the auth hook, no need to duplicate it here
       // Navigation happens in the useEffect above
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error signing in:", error);
-      toast({
-        title: "Login failed",
-        description: "Please check your credentials and try again",
-        variant: "destructive",
-      });
+      
+      // Check for rate limiting errors
+      if (error.message?.includes('rate limit') || error.message?.includes('after')) {
+        // Try to extract the number of seconds
+        const secondsMatch = error.message.match(/after (\d+) second/);
+        if (secondsMatch && secondsMatch[1]) {
+          setRetrySeconds(parseInt(secondsMatch[1]));
+        }
+        
+        setErrorMessage("Rate limit reached. Please wait before trying again.");
+      } else {
+        setErrorMessage(error.message || "Login failed. Please try again.");
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
   
   const handleRegister = async (values: z.infer<typeof registerSchema>) => {
+    setErrorMessage(null);
     setIsSubmitting(true);
     try {
       await signUp(values.email, values.password, values.name, values.phone || '');
       // Toast is shown by the auth hook, no need to duplicate it here
       // Navigation happens in the useEffect above
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error signing up:", error);
-      toast({
-        title: "Registration failed",
-        description: "Please check your information and try again",
-        variant: "destructive",
-      });
+      
+      // Check for rate limiting errors
+      if (error.message?.includes('rate limit') || error.message?.includes('after')) {
+        // Try to extract the number of seconds
+        const secondsMatch = error.message.match(/after (\d+) second/);
+        if (secondsMatch && secondsMatch[1]) {
+          setRetrySeconds(parseInt(secondsMatch[1]));
+        }
+        
+        setErrorMessage("For security purposes, please wait before trying again.");
+      } else if (error.message?.includes('violates row-level security')) {
+        setErrorMessage("Error creating user profile. Please try again later.");
+      } else {
+        setErrorMessage(error.message || "Registration failed. Please try again.");
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
   
   const handleGoogleSignIn = async () => {
+    setErrorMessage(null);
     try {
       await signInWithGoogle();
       // Navigation happens in the useEffect above
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error signing in with Google:", error);
-      toast({
-        title: "Login failed",
-        description: "Could not sign in with Google",
-        variant: "destructive",
-      });
+      setErrorMessage(error.message || "Could not sign in with Google");
     }
   };
   
@@ -143,6 +180,18 @@ const Auth = () => {
           </div>
           
           <div className="p-6">
+            {errorMessage && (
+              <div className="mb-6 bg-red-100 border border-red-200 text-red-700 px-4 py-3 rounded flex items-start gap-2">
+                <AlertTriangle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium">{errorMessage}</p>
+                  {retrySeconds !== null && (
+                    <p className="text-sm mt-1">Please wait {retrySeconds} seconds before trying again.</p>
+                  )}
+                </div>
+              </div>
+            )}
+            
             <Tabs value={tab} onValueChange={setTab} className="w-full">
               <TabsList className="grid w-full grid-cols-2 mb-6">
                 <TabsTrigger value="login">Login</TabsTrigger>
@@ -195,7 +244,7 @@ const Auth = () => {
                     <Button 
                       type="submit" 
                       className="w-full bg-rotiPurple hover:bg-rotiPurple/90"
-                      disabled={isSubmitting || loading}
+                      disabled={isSubmitting || loading || retrySeconds !== null}
                     >
                       {isSubmitting ? 'Signing in...' : 'Sign In'}
                     </Button>
@@ -313,9 +362,10 @@ const Auth = () => {
                     <Button 
                       type="submit" 
                       className="w-full bg-rotiPurple hover:bg-rotiPurple/90"
-                      disabled={isSubmitting || loading}
+                      disabled={isSubmitting || loading || retrySeconds !== null}
                     >
                       {isSubmitting ? 'Creating Account...' : 'Create Account'}
+                      {retrySeconds !== null && ` (${retrySeconds}s)`}
                     </Button>
                     
                     <div className="relative my-6">
